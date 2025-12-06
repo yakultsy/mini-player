@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Spotify Mini Player</title>
+<title>Spotify Mini Player (PKCE)</title>
 <style>
   body {
     min-height: 100vh;
@@ -25,18 +25,11 @@
     padding:10px 20px;
     border:none;
     border-radius:20px;
-    background:linear-gradient(90deg,#24c6dc,#514a9d);
+    background:#1db954;
     color:#fff;
     cursor:pointer;
     font-size:14px;
     margin-top:10px;
-  }
-  img {
-    width:80px;
-    height:80px;
-    border-radius:12px;
-    margin-bottom:10px;
-    object-fit:cover;
   }
 </style>
 </head>
@@ -52,7 +45,103 @@
 <script>
 const CLIENT_ID = "a73016ea14604eac89edca5fc1da15d1";
 const REDIRECT_URI = "https://yakultsy.github.io/mini-player/";
-const SCOPES = [
-    "user-read-currently-playing",
-    "user-read-playback-state",
-    "user-mod
+const SCOPES = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
+
+let accessToken = null;
+
+/* ------------------ PKCE FUNCTIONS --------------------- */
+
+async function generateCodeVerifier(length = 128) {
+    let text = "";
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (let i = 0; i < length; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+    return text;
+}
+
+async function generateCodeChallenge(codeVerifier) {
+    const data = new TextEncoder().encode(codeVerifier);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function login() {
+    const codeVerifier = await generateCodeVerifier();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    localStorage.setItem("verifier", codeVerifier);
+
+    const authUrl =
+        "https://accounts.spotify.com/authorize" +
+        `?client_id=${CLIENT_ID}` +
+        `&response_type=code` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+        `&code_challenge_method=S256` +
+        `&code_challenge=${codeChallenge}` +
+        `&scope=${encodeURIComponent(SCOPES)}`;
+
+    window.location = authUrl;
+}
+
+async function handleCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+
+    if (!code) return;
+
+    const verifier = localStorage.getItem("verifier");
+
+    const body = new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: verifier
+    });
+
+    const result = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body
+    });
+
+    const data = await result.json();
+    accessToken = data.access_token;
+
+    loadPlayer();
+}
+
+async function loadPlayer() {
+    if (!accessToken) return;
+
+    const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (res.status === 204) {
+        document.getElementById("content").innerHTML = "<p>Tidak ada lagu yang diputar.</p>";
+        return;
+    }
+
+    const data = await res.json();
+    const track = data.item;
+
+    document.getElementById("content").innerHTML = `
+        <img src="${track.album.images[0].url}" width="80" style="border-radius:12px;margin-bottom:10px;">
+        <p><b>${track.name}</b><br>${track.artists[0].name}</p>
+        <button onclick="togglePlay()">Play / Pause</button>
+    `;
+}
+
+async function togglePlay() {
+    await fetch("https://api.spotify.com/v1/me/player/pause", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+}
+
+handleCallback();
+</script>
+
+</body>
+</html>
