@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Spotify Mini Player (HTTPS Auto Token)</title>
+<title>Spotify Mini Player</title>
 <style>
   body {
     min-height: 100vh;
@@ -16,140 +16,43 @@
   .mini-player {
     width:340px;
     background:#161225;
-    padding:14px 16px;
+    padding:16px;
     border-radius:18px;
     box-shadow:0 24px 60px rgba(0,0,0,.6);
+    text-align:center;
   }
-  .window-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-  .dot{width:10px;height:10px;border-radius:50%;}
-  .red{background:#ff5f57;}
-  .yellow{background:#febc2e;}
-  .green{background:#28c840;}
-  .eq{margin-left:auto;display:flex;gap:3px;}
-  .eq div{width:3px;background:#58a6ff;height:10px;animation:bounce 1s infinite ease-in-out;}
-  .eq div:nth-child(2){animation-delay:.15s;}
-  .eq div:nth-child(3){animation-delay:.3s;}
-  @keyframes bounce{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.7);} }
-
-  .main{display:flex;gap:12px;align-items:center;}
-  .cover img{width:64px;height:64px;border-radius:14px;object-fit:cover;background:#333;}
-  .title{font-size:14px;font-weight:600;}
-  .artist{font-size:12px;opacity:.7;}
-
-  .progress-track{
-    width:100%;height:5px;background:rgba(255,255,255,.08);
-    border-radius:999px;margin:6px 0;overflow:hidden;
-  }
-  .progress-fill{
-    height:100%;width:0%;
-    background:linear-gradient(90deg,#a855ff,#ec4899);
-    transition:width .3s ease;
-  }
-  .time-row{font-size:10px;display:flex;justify-content:space-between;opacity:.6;margin-bottom:4px;}
-
-  .controls{display:flex;justify-content:center;gap:18px;margin-top:6px;}
-  .play-btn{
-    width:32px;height:32px;border-radius:50%;background:#fff;color:#000;
-    display:flex;align-items:center;justify-content:center;font-weight:bold;
-    cursor:pointer;
-  }
-  .ctrl{cursor:pointer;opacity:.8;}
-  .ctrl:hover{opacity:1;}
-
-  .connect-wrapper{text-align:center;padding:20px 10px;}
-  .connect-btn{
-    margin-top:10px;
-    padding:8px 16px;
-    border-radius:999px;
+  button {
+    padding:10px 20px;
     border:none;
+    border-radius:20px;
+    background:linear-gradient(90deg,#24c6dc,#514a9d);
+    color:#fff;
     cursor:pointer;
     font-size:14px;
-    font-weight:600;
-    background:linear-gradient(90deg,#22c55e,#3b82f6);
-    color:#fff;
+    margin-top:10px;
   }
-  .status{font-size:11px;opacity:.6;margin-top:6px;text-align:center;}
+  img {
+    width:80px;
+    height:80px;
+    border-radius:12px;
+    margin-bottom:10px;
+    object-fit:cover;
+  }
 </style>
 </head>
-
 <body>
-<div class="mini-player" id="player">
-  <div class="window-header">
-    <div class="dot red"></div>
-    <div class="dot yellow"></div>
-    <div class="dot green"></div>
-    <div class="eq"><div></div><div></div><div></div></div>
-  </div>
 
-  <div id="not-connected" class="connect-wrapper">
-    <div>Belum terhubung ke Spotify</div>
-    <button class="connect-btn" onclick="loginWithSpotify()">Connect to Spotify</button>
-    <div class="status" id="status-text"></div>
-  </div>
-
-  <div id="connected" style="display:none;">
-    <div class="main">
-      <div class="cover"><img id="cover" src=""></div>
-      <div>
-        <div class="title" id="title">Loading...</div>
-        <div class="artist" id="artist"></div>
-
-        <div class="progress-track">
-          <div class="progress-fill" id="progress"></div>
-        </div>
-
-        <div class="time-row">
-          <span id="current">0:00</span>
-          <span id="duration">0:00</span>
-        </div>
-      </div>
+<div class="mini-player">
+    <div id="content">
+        <p>Belum terhubung ke Spotify</p>
+        <button onclick="login()">Connect to Spotify</button>
     </div>
-
-    <div class="controls">
-      <div class="ctrl" onclick="prevTrack()">⏮</div>
-      <div class="play-btn" id="playBtn" onclick="togglePlay()">▶</div>
-      <div class="ctrl" onclick="nextTrack()">⏭</div>
-    </div>
-
-    <div class="status" id="status-connected"></div>
-  </div>
 </div>
 
 <script>
-const CLIENT_ID = "a73016ea14604eac89edca5fc1da15d1"; 
-const REDIRECT_URI = "https://yakultsy.github.io/mini-player/";      
-
+const CLIENT_ID = "a73016ea14604eac89edca5fc1da15d1";
+const REDIRECT_URI = "https://yakultsy.github.io/mini-player/";
 const SCOPES = [
-  "user-read-currently-playing",
-  "user-read-playback-state",
-  "user-modify-playback-state"
-];
-
-let accessToken = null;
-let isPlaying = false;
-
-function parseHashParams() {
-  const hash = window.location.hash.substring(1);
-  const params = {};
-  hash.split("&").forEach(part => {
-    const [key,val] = part.split("=");
-    if(key && val) params[key] = decodeURIComponent(val);
-  });
-  return params;
-}
-
-function loginWithSpotify() {
-  const authEndpoint = "https://accounts.spotify.com/authorize";
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    response_type: "token",
-    scope: SCOPES.join(" "),
-    show_dialog: "true"
-  });
-  window.location = `${authEndpoint}?${params.toString()}`;
-}
-
-function formatTime(ms){
-  const totalSeconds = Math.floor(ms/1000);
-  const m = Math.floor(totalSeconds/60);
+    "user-read-currently-playing",
+    "user-read-playback-state",
+    "user-mod
