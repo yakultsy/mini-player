@@ -2,145 +2,367 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Spotify Mini Player (PKCE)</title>
+<title>Spotify Floating Mini Player (PKCE)</title>
 <style>
+  :root {
+    color-scheme: dark;
+  }
+
   body {
-    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    background: transparent;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  /* Floating card di pojok kanan bawah */
+  .floating-player {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 320px;
+    background: #161225;
+    border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.7);
+    padding: 14px 16px;
+    color: #fff;
+    z-index: 9999;
+  }
+
+  .window-header{
     display:flex;
     align-items:center;
-    justify-content:center;
-    background:#0e0b18;
-    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-    color:#fff;
+    gap:8px;
+    margin-bottom:10px;
   }
-  .mini-player {
-    width:340px;
-    background:#161225;
-    padding:16px;
-    border-radius:18px;
-    box-shadow:0 24px 60px rgba(0,0,0,.6);
-    text-align:center;
+  .dot{
+    width:10px;height:10px;border-radius:50%;
   }
-  button {
-    padding:10px 20px;
-    border:none;
-    border-radius:20px;
-    background:#1db954;
-    color:#fff;
-    cursor:pointer;
+  .red{background:#ff5f57;}
+  .yellow{background:#febc2e;}
+  .green{background:#28c840;}
+
+  .header-title{
+    margin-left:6px;
+    font-size:11px;
+    opacity:.65;
+  }
+
+  /* Wave palsu */
+  .wave {
+    margin-left:auto;
+    display:flex;
+    align-items:flex-end;
+    gap:3px;
+    height:16px;
+  }
+  .wave span{
+    display:block;
+    width:3px;
+    border-radius:999px;
+    background:#4ade80;
+    transform-origin:bottom;
+    animation:wave 0.9s infinite ease-in-out;
+  }
+  .wave span:nth-child(1){height:6px; animation-delay:0s;}
+  .wave span:nth-child(2){height:10px; animation-delay:0.1s;}
+  .wave span:nth-child(3){height:14px; animation-delay:0.2s;}
+  .wave span:nth-child(4){height:9px; animation-delay:0.15s;}
+  .wave span:nth-child(5){height:12px; animation-delay:0.05s;}
+
+  @keyframes wave{
+    0%,100%{transform:scaleY(1);}
+    50%{transform:scaleY(1.8);}
+  }
+
+  .wave.paused span{
+    animation-play-state: paused;
+    opacity:.3;
+  }
+
+  .main{
+    display:flex;
+    gap:12px;
+    align-items:center;
+  }
+  .cover img{
+    width:60px;height:60px;
+    border-radius:14px;
+    object-fit:cover;
+    background:#333;
+  }
+  .title{
     font-size:14px;
-    margin-top:10px;
+    font-weight:600;
+  }
+  .artist{
+    font-size:12px;
+    opacity:.7;
+  }
+
+  .progress-track{
+    width:100%;height:4px;
+    background:rgba(255,255,255,.1);
+    border-radius:999px;
+    margin:6px 0;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,#a855ff,#ec4899);
+    transition:width .3s ease;
+  }
+  .time-row{
+    font-size:10px;
+    display:flex;
+    justify-content:space-between;
+    opacity:.6;
+    margin-bottom:2px;
+  }
+
+  .center{
+    text-align:center;
+    padding:6px 0 2px;
+  }
+  .connect-btn{
+    margin-top:6px;
+    padding:7px 14px;
+    border-radius:999px;
+    border:none;
+    cursor:pointer;
+    font-size:13px;
+    font-weight:600;
+    background:linear-gradient(90deg,#22c55e,#3b82f6);
+    color:#fff;
+  }
+
+  .status{
+    font-size:11px;
+    opacity:.6;
+    margin-top:6px;
+    text-align:center;
   }
 </style>
 </head>
 <body>
 
-<div class="mini-player">
-    <div id="content">
-        <p>Belum terhubung ke Spotify</p>
-        <button onclick="login()">Connect to Spotify</button>
+<div class="floating-player">
+  <div class="window-header">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+    <div class="header-title">Spotify Mini Player</div>
+    <div class="wave" id="wave">
+      <span></span><span></span><span></span><span></span><span></span>
     </div>
+  </div>
+
+  <!-- Belum login -->
+  <div id="not-connected" class="center">
+    <div>Belum terhubung ke Spotify</div>
+    <button class="connect-btn" onclick="login()">Connect to Spotify</button>
+    <div class="status" id="status-text"></div>
+  </div>
+
+  <!-- Sudah login -->
+  <div id="connected" style="display:none;">
+    <div class="main">
+      <div class="cover">
+        <img id="cover" src="">
+      </div>
+      <div>
+        <div class="title" id="title">Loading...</div>
+        <div class="artist" id="artist"></div>
+
+        <div class="progress-track">
+          <div class="progress-fill" id="progress"></div>
+        </div>
+        <div class="time-row">
+          <span id="current">0:00</span>
+          <span id="duration">0:00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="status-connected"></div>
+  </div>
 </div>
 
 <script>
 const CLIENT_ID = "a73016ea14604eac89edca5fc1da15d1";
 const REDIRECT_URI = "https://yakultsy.github.io/mini-player/";
-const SCOPES = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
+const SCOPES = "user-read-currently-playing user-read-playback-state";
 
 let accessToken = null;
+let isPlaying = false;
+let progressMs = 0;
+let durationMs = 0;
 
-/* ------------------ PKCE FUNCTIONS --------------------- */
+/* ---------- PKCE HELPER ---------- */
 
 async function generateCodeVerifier(length = 128) {
-    let text = "";
-    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    for (let i = 0; i < length; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
-    return text;
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }
 
 async function generateCodeChallenge(codeVerifier) {
-    const data = new TextEncoder().encode(codeVerifier);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    return btoa(String.fromCharCode(...new Uint8Array(digest)))
-        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const data = new TextEncoder().encode(codeVerifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 async function login() {
-    const codeVerifier = await generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
+  const codeVerifier = await generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-    localStorage.setItem("verifier", codeVerifier);
+  localStorage.setItem("spotify_verifier", codeVerifier);
 
-    const authUrl =
-        "https://accounts.spotify.com/authorize" +
-        `?client_id=${CLIENT_ID}` +
-        `&response_type=code` +
-        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-        `&code_challenge_method=S256` +
-        `&code_challenge=${codeChallenge}` +
-        `&scope=${encodeURIComponent(SCOPES)}`;
+  const authUrl =
+    "https://accounts.spotify.com/authorize" +
+    `?client_id=${CLIENT_ID}` +
+    `&response_type=code` +
+    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+    `&code_challenge_method=S256` +
+    `&code_challenge=${codeChallenge}` +
+    `&scope=${encodeURIComponent(SCOPES)}`;
 
-    window.location = authUrl;
+  window.location = authUrl;
 }
 
 async function handleCallback() {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if (!code) return;
 
-    if (!code) return;
+  const verifier = localStorage.getItem("spotify_verifier");
+  if (!verifier) return;
 
-    const verifier = localStorage.getItem("verifier");
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    grant_type: "authorization_code",
+    code: code,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: verifier
+  });
 
-    const body = new URLSearchParams({
-        client_id: CLIENT_ID,
-        grant_type: "authorization_code",
-        code: code,
-        redirect_uri: REDIRECT_URI,
-        code_verifier: verifier
-    });
+  const result = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
 
-    const result = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: body
-    });
+  const data = await result.json();
+  accessToken = data.access_token;
 
-    const data = await result.json();
-    accessToken = data.access_token;
+  localStorage.setItem("spotify_access_token_pkce", accessToken);
+  // hapus ?code= dari URL
+  window.history.replaceState({}, document.title, REDIRECT_URI);
 
-    loadPlayer();
+  startPlayer();
 }
 
-async function loadPlayer() {
-    if (!accessToken) return;
+function startPlayer() {
+  if (!accessToken) return;
+  document.getElementById("not-connected").style.display = "none";
+  document.getElementById("connected").style.display = "block";
+  updatePlayer();
+  setInterval(updatePlayer, 2000);
+}
 
-    const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s < 10 ? "0" + s : s}`;
+}
 
-    if (res.status === 204) {
-        document.getElementById("content").innerHTML = "<p>Tidak ada lagu yang diputar.</p>";
-        return;
+async function apiGet(url) {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (res.status === 401) {
+    localStorage.removeItem("spotify_access_token_pkce");
+    document.getElementById("status-text").textContent = "Token expired, login lagi.";
+    document.getElementById("not-connected").style.display = "block";
+    document.getElementById("connected").style.display = "none";
+    throw new Error("Unauthorized");
+  }
+  if (res.status === 204) return null;
+  return await res.json();
+}
+
+async function updatePlayer() {
+  if (!accessToken) return;
+
+  try {
+    const data = await apiGet("https://api.spotify.com/v1/me/player/currently-playing");
+    const statusText = document.getElementById("status-connected");
+    const waveEl = document.getElementById("wave");
+
+    if (!data || !data.item) {
+      document.getElementById("title").innerText = "Tidak ada lagu";
+      document.getElementById("artist").innerText = "";
+      document.getElementById("cover").src = "";
+      document.getElementById("progress").style.width = "0%";
+      document.getElementById("current").innerText = "0:00";
+      document.getElementById("duration").innerText = "0:00";
+      statusText.textContent = "Putar lagu di Spotify";
+      waveEl.classList.add("paused");
+      return;
     }
 
-    const data = await res.json();
     const track = data.item;
+    isPlaying = data.is_playing;
+    progressMs = data.progress_ms;
+    durationMs = track.duration_ms;
 
-    document.getElementById("content").innerHTML = `
-        <img src="${track.album.images[0].url}" width="80" style="border-radius:12px;margin-bottom:10px;">
-        <p><b>${track.name}</b><br>${track.artists[0].name}</p>
-        <button onclick="togglePlay()">Play / Pause</button>
-    `;
+    document.getElementById("title").innerText = track.name;
+    document.getElementById("artist").innerText = track.artists.map(a => a.name).join(", ");
+    document.getElementById("cover").src =
+      track.album.images[1]?.url || track.album.images[0]?.url || "";
+
+    document.getElementById("current").innerText = formatTime(progressMs);
+    document.getElementById("duration").innerText = formatTime(durationMs);
+    document.getElementById("progress").style.width =
+      (progressMs / durationMs * 100) + "%";
+
+    statusText.textContent = data.device ? `Device: ${data.device.name}` : "";
+
+    if (isPlaying) {
+      waveEl.classList.remove("paused");
+    } else {
+      waveEl.classList.add("paused");
+    }
+
+  } catch (e) {
+    console.log(e);
+  }
 }
 
-async function togglePlay() {
-    await fetch("https://api.spotify.com/v1/me/player/pause", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-}
+/* ---------- INIT ---------- */
 
-handleCallback();
+(async function init(){
+  await handleCallback();
+
+  if (!accessToken) {
+    const stored = localStorage.getItem("spotify_access_token_pkce");
+    if (stored) {
+      accessToken = stored;
+      startPlayer();
+      return;
+    }
+  }
+
+  // belum punya token
+  document.getElementById("not-connected").style.display = "block";
+})();
 </script>
 
 </body>
